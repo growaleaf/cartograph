@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CARTOGRAPH — the map is the only map you get</title>
+<meta name="description" content="Explore a fogged wilderness in short expeditions. There is no map screen — only the one you draw yourself. Later expeditions, you navigate by your own sketch. At the end, a lost stranger walks it too — using nothing but your hand.">
+<meta property="og:title" content="CARTOGRAPH — the map is the only map you get">
+<meta property="og:description" content="No auto-map. No HUD. Just your pencil, your memory, and a stranger who has to trust what you drew.">
+<meta property="og:url" content="https://cartograph.defimagic.io">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2242%22 fill=%22%23f3ead4%22 stroke=%22%236b4a2b%22 stroke-width=%225%22/><path d=%22M50 10 L60 50 L50 90 L40 50 Z%22 fill=%22%236b4a2b%22/><path d=%22M10 50 L50 40 L90 50 L50 60 Z%22 fill=%22%238a5a34%22/><circle cx=%2250%22 cy=%2250%22 r=%226%22 fill=%22%233b2f22%22/></svg>">
+<style>
+  :root { --paper:#f3ead4; --paper2:#ece0c3; --ink:#3b2f22; --dim:#8a7a5c; --accent:#6b4a2b;
+          --accent2:#8a5a34; --line:#cbb98f; --card:#faf3e0; --good:#4f6b3a; --bad:#9c4a3a; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; background:var(--paper); }
+  body { font-family:Georgia,'Times New Roman',serif; color:var(--ink); overflow:hidden;
+         user-select:none; -webkit-user-select:none; }
+  #stage { position:relative; max-width:480px; height:100dvh; margin:0 auto; overflow:hidden;
+    background:
+      radial-gradient(ellipse 100% 30% at 50% 108%, rgba(107,74,43,.14), transparent 70%),
+      linear-gradient(180deg, #f8f1dc, var(--paper) 45%); }
+  .screen { position:absolute; inset:0; display:none; flex-direction:column;
+    padding:max(16px, env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom)); overflow:auto; }
+  .screen.on { display:flex; }
+  .center { align-items:center; justify-content:center; text-align:center; gap:9px; }
+  h1 { font-size:36px; letter-spacing:.13em; color:var(--accent); font-weight:normal; }
+  .sub { color:var(--dim); font-style:italic; margin-bottom:6px; font-size:14.5px; }
+  .compass { color:var(--accent); }
+  .btn { font-family:inherit; font-size:16px; letter-spacing:.03em; cursor:pointer;
+    background:var(--card); color:var(--ink); border:1.5px solid var(--line); border-radius:10px;
+    padding:13px 16px; width:100%; max-width:340px; margin:5px 0; }
+  .btn.primary { border-color:var(--accent); color:var(--accent); background:#f7efd9;
+    box-shadow:0 2px 0 var(--accent); }
+  .btn.small { font-size:13.5px; padding:9px 12px; width:auto; }
+  .btn:active { transform:translateY(1px); box-shadow:none; }
+  .btn[disabled] { opacity:.38; pointer-events:none; }
+  .small { font-size:13px; color:var(--dim); line-height:1.6; }
+  .topbar { display:flex; align-items:center; gap:10px; margin-bottom:8px; align-self:stretch; }
+  .back { background:none; border:none; color:var(--dim); font-family:inherit; font-size:14.5px; cursor:pointer; padding:6px 8px 6px 0; }
+  .tname { font-size:14.5px; letter-spacing:.1em; color:var(--accent); }
+  .stat { font-size:12.5px; color:var(--dim); }
+
+  #howBody { max-width:350px; line-height:1.75; font-size:15.5px; text-align:left; }
+  #howBody p { margin:10px 0; }
+  #howBody b { color:var(--accent); font-weight:normal; }
+
+  /* daylight gauge */
+  .daylight { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--dim); width:100%; max-width:400px; }
+  .gaugeTrack { flex:1; height:7px; background:var(--paper2); border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+  .gaugeFill { height:100%; background:linear-gradient(90deg,#c99a4a,#e8b45f); }
+
+  canvas.sketch { display:block; width:100%; height:auto; border:1.5px solid var(--line); border-radius:10px;
+    background:var(--card); box-shadow:0 6px 18px rgba(59,47,34,.08); touch-action:none; }
+
+  .narrate { font-size:15.5px; line-height:1.65; text-align:center; max-width:340px; }
+  .narrate b { color:var(--accent); font-weight:normal; }
+
+  .choices { display:flex; flex-direction:column; gap:8px; width:100%; max-width:400px; margin-top:6px; }
+  .choice { text-align:left; background:var(--card); border:1.5px solid var(--line); border-radius:10px;
+    padding:11px 13px; font-family:inherit; font-size:14.5px; color:var(--ink); cursor:pointer; }
+  .choice .d { font-size:11.5px; color:var(--dim); }
+  .choice[disabled] { opacity:.4; pointer-events:none; }
+  .choice.stuck { color:var(--dim); font-style:italic; }
+
+  .toolbar { display:flex; gap:6px; overflow-x:auto; width:100%; max-width:440px; padding:4px 2px; }
+  .tool { flex:0 0 auto; width:44px; height:44px; border-radius:9px; border:1.5px solid var(--line);
+    background:var(--card); font-size:19px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .tool.on { border-color:var(--accent); box-shadow:0 0 0 2px rgba(107,74,43,.2); }
+  .tool[disabled] { opacity:.3; pointer-events:none; }
+
+  .gentle { font-style:italic; color:var(--dim); font-size:13.5px; min-height:20px; text-align:center; }
+  #campLabel { width:100%; max-width:340px; font-family:inherit; font-size:13.5px; padding:8px 10px;
+    border:1.5px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); text-align:center; }
+
+  .row { display:flex; gap:8px; width:100%; max-width:400px; flex-wrap:wrap; justify-content:center; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <div class="screen center on" id="title">
+    <svg class="compass" width="60" height="60" viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" stroke-width="5"/>
+      <path d="M50 10 L60 50 L50 90 L40 50 Z" fill="currentColor"/>
+      <path d="M10 50 L50 40 L90 50 L50 60 Z" fill="currentColor" opacity="0.6"/>
+      <circle cx="50" cy="50" r="6" fill="currentColor"/>
+    </svg>
+    <h1>CARTOGRAPH</h1>
+    <div class="sub">the only map you get is the one you draw</div>
+    <button class="btn primary" id="btnPlay">BEGIN</button>
+    <button class="btn" id="btnHow">WHAT IS THIS?</button>
+    <button class="btn" id="btnTrial" style="display:none">SEND THE STRANGER TO THE SPRING</button>
+    <div class="stat" id="titleStat"></div>
+  </div>
+
+  <div class="screen center" id="how">
+    <div id="howBody">
+      <p>You walk into a wilderness that has never been mapped. <b>Not by us, not by anyone.</b> There is no map screen. There never will be — this game simply does not have one.</p>
+      <p>What you see, you may draw. At camp each night, sketch what you remember: stamps for the things you passed, ink lines for the trails between them. That drawing is the only record that will ever exist.</p>
+      <p>From your second expedition on, <b>you find your way by your own sketch</b> — not the truth of the land. If you drew it vague, the land stays vague. If you drew it wrong, you go the wrong way.</p>
+      <p class="small">At the end, a lost stranger arrives asking for the spring. You cannot walk with them. They will follow only what is on your paper — nothing you merely remember and never marked.</p>
+    </div>
+    <button class="btn" data-go="title">back</button>
+  </div>
+
+  <div class="screen" id="expedition">
+    <div class="topbar"><button class="back" data-go="title">← leave</button><span class="tname" id="expDay"></span></div>
+    <div class="daylight"><span>daylight</span><div class="gaugeTrack"><div class="gaugeFill" id="gaugeFill"></div></div></div>
+    <canvas class="sketch" id="viewCv" width="480" height="300" style="margin-top:10px"></canvas>
+    <div class="narrate" id="expNarrate" style="margin-top:10px"></div>
+    <div class="choices" id="expChoices"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn small" id="btnCamp">MAKE CAMP</button>
+    </div>
+  </div>
+
+  <div class="screen" id="camp">
+    <div class="topbar"><span class="tname" id="campTitle">CAMP</span></div>
+    <div class="narrate" id="campPrompt" style="margin-bottom:8px"></div>
+    <canvas class="sketch" id="mapCv" width="480" height="320"></canvas>
+    <input id="campLabel" maxlength="18" placeholder="what will you call it? (optional)" style="margin-top:8px; display:none">
+    <div class="toolbar" id="toolbar" style="margin-top:8px"></div>
+    <div class="gentle" id="campGentle"></div>
+    <div class="row">
+      <button class="btn small" id="btnUndo">UNDO LAST INK STROKE</button>
+      <button class="btn small" id="btnSkipPending" style="display:none">I DON'T RECALL IT WELL ENOUGH TO MARK IT</button>
+    </div>
+    <button class="btn primary" id="btnBreakCamp" style="margin-top:10px">BREAK CAMP — WALK ON</button>
+  </div>
+
+  <div class="screen center" id="trial">
+    <div class="topbar"><button class="back" data-go="title">← back</button><span class="tname">THE STRANGER'S TRIAL</span></div>
+    <canvas class="sketch" id="trialCv" width="480" height="320"></canvas>
+    <div class="narrate" id="trialNarrate" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn primary" id="btnSend">SEND THEM</button>
+      <button class="btn" id="btnMend" style="display:none">MEND THE MAP</button>
+    </div>
+  </div>
+
+</div>
+<script type="module" src="game.js"></script>
+</body>
+</html>
